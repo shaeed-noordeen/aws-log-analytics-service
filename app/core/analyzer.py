@@ -1,31 +1,23 @@
-"""
-Core analytics logic shared by CLI and HTTP entry points.
-"""
-
 import json
 from collections import defaultdict
-from typing import Any, Dict, IO, Union
+from typing import Any, Dict, Iterable, IO, Union
+
+LogStream = Union[IO[Union[str, bytes]], Iterable[Union[str, bytes]]]
 
 
-def analyze_logs(
-    log_stream: IO[Union[str, bytes]],
-    threshold: int,
-) -> Dict[str, Any]:
-    """
-    Analyze JSON Lines data and return error statistics.
+def _iter_lines(src: LogStream):
+    if hasattr(src, "__next__") or hasattr(src, "__iter__"):
+        for line in src:
+            yield line
+    else:
+        raise TypeError("Unsupported log source")
 
-    Parameters
-    ----------
-    log_stream:
-        File-like object yielding JSONL records as bytes.
-    threshold:
-        Error count threshold used to flip the `alert` flag.
-    """
 
+def analyze_logs(log_stream: LogStream, threshold: int) -> Dict[str, Any]:
     error_counts = defaultdict(int)
     total_errors = 0
 
-    for line in log_stream:
+    for line in _iter_lines(log_stream):
         try:
             if isinstance(line, bytes):
                 decoded = line.decode("utf-8")

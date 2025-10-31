@@ -11,9 +11,6 @@ app = FastAPI()
 
 @app.get("/healthz")
 def health_check():
-    """
-    Health check endpoint.
-    """
     return {"status": "ok"}
 
 
@@ -22,13 +19,10 @@ def analyze_s3_logs(
     bucket: str,
     prefix: str,
     threshold: int = Query(3, ge=0),
+    stream: bool = Query(False),
 ):
-    """
-    Analyzes logs from an S3 bucket.
-    """
     s3 = boto3.client("s3")
     try:
-        # Paginate through objects to find the most recently modified one
         paginator = s3.get_paginator("list_objects_v2")
         latest_object = None
 
@@ -47,12 +41,14 @@ def analyze_s3_logs(
             )
 
         obj_key = latest_object["Key"]
-
-        # Get the object and analyze its content
         s3_object = s3.get_object(Bucket=bucket, Key=obj_key)
-        log_stream = io.BytesIO(s3_object["Body"].read())
 
-        return analyze_logs(log_stream, threshold)
+        if stream:
+            log_source = s3_object["Body"].iter_lines()
+        else:
+            log_source = io.BytesIO(s3_object["Body"].read())
+
+        return analyze_logs(log_source, threshold)
 
     except HTTPException as http_error:
         raise http_error
@@ -71,6 +67,3 @@ def analyze_s3_logs(
             status_code=500,
             detail=f"An unexpected error occurred: {error}",
         ) from error
-
-# Example of how to run this server:
-# uvicorn app.http_server:app --host 0.0.0.0 --port 8080

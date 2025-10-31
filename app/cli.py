@@ -1,7 +1,3 @@
-"""
-Command line entry point for the log analyzer.
-"""
-
 import argparse
 import io
 import json
@@ -36,6 +32,11 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=3,
         help="Error count threshold for alerting.",
+    )
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="Stream S3 object instead of downloading it into memory.",
     )
     return parser
 
@@ -95,9 +96,16 @@ def run(argv: Optional[Iterable[str]] = None) -> int:
 
             obj_key = latest_object["Key"]
             s3_object = s3.get_object(Bucket=args.bucket, Key=obj_key)
-            log_stream = io.BytesIO(s3_object["Body"].read())
 
-            result = analyze_logs(log_stream, args.threshold)
+            if args.stream:
+                # Streaming: iterate lines from S3 directly
+                log_iter = s3_object["Body"].iter_lines()
+                result = analyze_logs(log_iter, args.threshold)
+            else:
+                # Old behaviour: load into memory
+                log_stream = io.BytesIO(s3_object["Body"].read())
+                result = analyze_logs(log_stream, args.threshold)
+
             print(json.dumps(result, indent=2))
             return 0
         except ClientError as error:

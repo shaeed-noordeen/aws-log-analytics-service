@@ -126,3 +126,41 @@ class TestHTTPServer(unittest.TestCase):
 
         self.assertEqual(response.status_code, 500)
         self.assertIn("An S3 error occurred", response.json()["detail"])
+
+    @patch("app.http_server.boto3.client")
+    def test_analyze_streaming_true(
+        self, mock_client_factory: MagicMock
+    ) -> None:
+        # paginator returns one object
+        paginator = MagicMock()
+        paginator.paginate.return_value = [
+            {"Contents": [{"Key": "logs/file.jsonl", "LastModified": 1}]}
+        ]
+
+        # streaming body
+        streaming_body = MagicMock()
+        streaming_body.iter_lines.return_value = [
+            b'{"service":"api","level":"ERROR"}',
+            b'{"service":"billing","level":"INFO"}',
+        ]
+
+        s3_client = MagicMock()
+        s3_client.get_paginator.return_value = paginator
+        s3_client.get_object.return_value = {"Body": streaming_body}
+        mock_client_factory.return_value = s3_client
+
+        resp = self.client.get(
+            "/analyze",
+            params={
+                "bucket": "demo",
+                "prefix": "logs/",
+                "threshold": 1,
+                "stream": True,
+            },
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["byService"], {"api": 1})
+        streaming_body.iter_lines.assert_called_once()
