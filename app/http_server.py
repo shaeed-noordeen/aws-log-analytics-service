@@ -62,7 +62,7 @@ def analyze_s3_logs(
             status_code=500,
             detail=f"An S3 error occurred: {error}",
         ) from error
-    except Exception as error:  # noqa: broad-except
+    except Exception as error:  # noqa: broad except
         raise HTTPException(
             status_code=500,
             detail=f"An unexpected error occurred: {error}",

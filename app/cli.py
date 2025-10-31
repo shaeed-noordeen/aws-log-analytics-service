@@ -31,7 +31,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--threshold",
         type=int,
         default=3,
-        help="Error count threshold for alerting.",
+        help="Error count threshold, for alerting.",
     )
     parser.add_argument(
         "--stream",

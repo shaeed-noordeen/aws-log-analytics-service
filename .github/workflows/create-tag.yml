@@ -2,19 +2,29 @@ name: Create Version Tag
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+
+# GITHUB_TOKEN must be allowed to write tags
+permissions:
+  contents: write
 
 jobs:
   create-tag:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetch all history for git tags
+          fetch-depth: 0  # fetch tags/history so the action can compute next version
 
-      - name: Determine PR number
+      # optional: skip on forks (safety)
+      - name: Stop if running on a fork
+        if: github.event.repository.fork == true
+        run: |
+          echo "Running on a fork — skipping tag creation."
+          exit 78
+
+      - name: Determine PR number from merge commit message
         id: pr
         shell: bash
         run: |
@@ -25,27 +35,33 @@ jobs:
             echo "number=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Get PR title
+      - name: Get PR title (if available)
         id: get_pr_title
         if: steps.pr.outputs.number != ''
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
-            const pullNumber = Number('${{ steps.pr.outputs.number }}');
-            const pr = await github.rest.pulls.get({
+            const pullNumber = Number(core.getInput('pr_number'));
+            const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pullNumber
             });
-            core.setOutput('title', pr.data.title);
+            core.setOutput('title', pr.title);
+          pr_number: ${{ steps.pr.outputs.number }}
 
+      # Create / bump semver tag; requires contents: write
       - name: Create new tag
         id: create_tag
-        uses: anothrNick/github-tag-action@1.36.0
+        uses: anothrNick/github-tag-action@1.67.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEFAULT_BUMP: patch
           WITH_V: true
+          RELEASE_BRANCHES: main
+          INITIAL_VERSION: 0.0.0
+          PRERELEASE_SUFFIX: beta
+          VERBOSE: true
         with:
           commit-sha: ${{ github.sha }}
           custom_title: ${{ steps.get_pr_title.outputs.title }}
