@@ -1,0 +1,65 @@
+name: Infrastructure CI
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+
+jobs:
+  plan:
+    if: github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role # Replace with your OIDC role
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init
+        run: terraform -chdir=terraform/envs/prod init
+
+      - name: Terraform Validate
+        run: terraform -chdir=terraform/envs/prod validate
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform -chdir=terraform/envs/prod plan -no-color -out=tfplan.binary
+          terraform -chdir=terraform/envs/prod show -no-color tfplan.binary > tfplan.txt
+          echo "plan<<'EOF'" >> "$GITHUB_OUTPUT"
+          cat tfplan.txt >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: success()
+        uses: actions/github-script@v6
+        env:
+          PLAN_OUTPUT: ${{ steps.plan.outputs.plan }}
+        with:
+          script: |
+            const plan = process.env.PLAN_OUTPUT || 'Plan output unavailable.';
+            const body = [
+              '#### Terraform Plan',
+              '',
+              '```',
+              plan,
+              '```',
+              `*Pushed by: @${context.actor}, Action: \`${context.eventName}\`*`,
+            ].join('\n');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });

@@ -1,0 +1,54 @@
+name: Create Version Tag
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history for git tags
+
+      - name: Determine PR number
+        id: pr
+        shell: bash
+        run: |
+          MESSAGE=$(jq -r '.head_commit.message // ""' "$GITHUB_EVENT_PATH")
+          if [[ "$MESSAGE" =~ \#([0-9]+) ]]; then
+            echo "number=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get PR title
+        id: get_pr_title
+        if: steps.pr.outputs.number != ''
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const pullNumber = Number('${{ steps.pr.outputs.number }}');
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber
+            });
+            core.setOutput('title', pr.data.title);
+
+      - name: Create new tag
+        id: create_tag
+        uses: anothrNick/github-tag-action@1.36.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BUMP: patch
+          WITH_V: true
+        with:
+          commit-sha: ${{ github.sha }}
+          custom_title: ${{ steps.get_pr_title.outputs.title }}
+
+      - name: Tag output
+        run: echo "New tag is ${{ steps.create_tag.outputs.tag }}"

@@ -1,0 +1,81 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role # Replace with your OIDC role
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Set image tag
+        id: tag
+        run: |
+          TAG=$(git rev-parse --short HEAD)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: log-analyzer
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f docker/Dockerfile .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment:
+      name: prod
+      url: ${{ steps.smoke-test.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role # Replace with your OIDC role
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init
+        run: terraform -chdir=terraform/envs/prod init
+
+      - name: Terraform Apply
+        run: terraform -chdir=terraform/envs/prod apply -auto-approve -var="image_tag=${{ needs.build-and-push.outputs.image_tag }}"
+
+      - name: Get CloudFront URL
+        id: get-url
+        run: |
+          URL=$(terraform -chdir=terraform/envs/prod output -raw cloudfront_domain_name)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke Test
+        id: smoke-test
+        run: |
+          sleep 30 # Wait for deployment to stabilize
+          URL="https://${{ steps.get-url.outputs.url }}"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          curl -sf "$URL/healthz"
