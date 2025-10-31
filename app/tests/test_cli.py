@@ -105,3 +105,42 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         combined = f"{stdout}\n{stderr}".lower()
         self.assertIn("usage:", combined)
+
+    @patch("app.cli.boto3.client")
+    def test_run_with_s3_streaming(
+        self, mock_client_factory: MagicMock
+    ) -> None:
+        paginator = MagicMock()
+        paginator.paginate.return_value = [
+            {"Contents": [{"Key": "logs/file.jsonl", "LastModified": 1}]}
+        ]
+
+        streaming_body = MagicMock()
+        streaming_body.iter_lines.return_value = [
+            b'{"service":"api","level":"ERROR"}',
+            b'{"service":"billing","level":"INFO"}',
+        ]
+
+        s3_client = MagicMock()
+        s3_client.get_paginator.return_value = paginator
+        s3_client.get_object.return_value = {"Body": streaming_body}
+        mock_client_factory.return_value = s3_client
+
+        exit_code, stdout, stderr = self._run_cli(
+            [
+                "--bucket",
+                "demo",
+                "--prefix",
+                "logs/",
+                "--stream",
+                "--threshold",
+                "1",
+            ]
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr, "")
+        result = json.loads(stdout)
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["byService"], {"api": 1})
+        streaming_body.iter_lines.assert_called_once()
