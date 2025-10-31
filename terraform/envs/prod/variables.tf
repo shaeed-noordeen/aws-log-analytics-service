@@ -11,7 +11,7 @@ variable "image_tag" {
 }
 
 variable "origin_hostname" {
-  description = "External DNS name that CloudFront should use to reach the ALB."
+  description = "External DNS name that CloudFront should use to reach the ALB. Currenlty hosted in GoDaddy"
   type        = string
   default     = "alb-origin.shaeed.co.uk"
 }
