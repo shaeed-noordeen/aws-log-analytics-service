@@ -1,82 +1,23 @@
-resource "aws_cloudfront_distribution" "main" {
-  origin {
-    domain_name = var.origin_hostname != null && length(trimspace(var.origin_hostname)) > 0 ? trimspace(var.origin_hostname) : var.alb_dns_name
-    origin_id   = "alb-origin"
+locals {
+  sanitized_name = replace(lower(var.name), "/[^a-z0-9-]/", "-")
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
+  base_tags = merge(
+    {
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    },
+    var.tags
+  )
 
-    custom_header {
-      name  = "X-Origin-Verify"
-      value = var.origin_verify_header_value
-    }
-  }
-
-  enabled             = true
-  is_ipv6_enabled     = true
-  comment             = "Distribution for ${var.project_name}"
-  default_root_object = "index.html"
-
-  default_cache_behavior {
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "alb-origin"
-
-    forwarded_values {
-      query_string = true
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "/analyze"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "alb-origin"
-
-    forwarded_values {
-      query_string = true
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
-  }
-
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-
-  viewer_certificate {
-    cloudfront_default_certificate = true
-  }
-
-  web_acl_id = aws_wafv2_web_acl.main.arn
-
-  tags = var.tags
+  waf_name        = coalesce(var.waf_name, "${local.sanitized_name}-waf")
+  distribution_comment = coalesce(var.comment, "Distribution for ${var.name}")
 }
 
 resource "aws_wafv2_web_acl" "main" {
   provider = aws.us-east-1
-  name     = "${var.project_name}-waf"
+  name     = local.waf_name
   scope    = "CLOUDFRONT"
+
   default_action {
     allow {}
   }
@@ -109,5 +50,91 @@ resource "aws_wafv2_web_acl" "main" {
     sampled_requests_enabled   = true
   }
 
-  tags = var.tags
+  tags = merge(
+    local.base_tags,
+    {
+      Name = local.waf_name
+    }
+  )
+}
+
+resource "aws_cloudfront_distribution" "main" {
+  origin {
+    domain_name = var.origin_domain_name
+    origin_id   = var.origin_id
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = var.origin_protocol_policy
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+
+    dynamic "custom_header" {
+      for_each = var.custom_origin_header_name == null ? [] : [var.custom_origin_header_name]
+      content {
+        name  = var.custom_origin_header_name
+        value = var.custom_origin_header_value
+      }
+    }
+  }
+
+  enabled             = true
+  is_ipv6_enabled     = true
+  comment             = local.distribution_comment
+  default_root_object = var.default_root_object
+
+  default_cache_behavior {
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = var.origin_id
+
+    forwarded_values {
+      query_string = true
+      cookies {
+        forward = "none"
+      }
+    }
+
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+  }
+
+  dynamic "ordered_cache_behavior" {
+    for_each = var.ordered_cache_behaviors
+    content {
+      path_pattern     = ordered_cache_behavior.value.path_pattern
+      allowed_methods  = ordered_cache_behavior.value.allowed_methods
+      cached_methods   = ordered_cache_behavior.value.cached_methods
+      target_origin_id = var.origin_id
+
+      forwarded_values {
+        query_string = ordered_cache_behavior.value.forward_query_string
+        cookies {
+          forward = ordered_cache_behavior.value.forward_cookies
+        }
+      }
+
+      viewer_protocol_policy = ordered_cache_behavior.value.viewer_protocol_policy
+      min_ttl                = ordered_cache_behavior.value.min_ttl
+      default_ttl            = ordered_cache_behavior.value.default_ttl
+      max_ttl                = ordered_cache_behavior.value.max_ttl
+    }
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  web_acl_id = aws_wafv2_web_acl.main.arn
+
+  tags = local.base_tags
 }

@@ -1,15 +1,51 @@
+locals {
+  sanitized_name          = replace(lower(var.name), "/[^a-z0-9-]/", "-")
+  resolved_alb_name       = substr(coalesce(var.alb_name, "${local.sanitized_name}-alb"), 0, 32)
+  resolved_target_name    = substr(coalesce(var.target_group_name, "${local.sanitized_name}-tg"), 0, 32)
+  resolved_security_group = coalesce(var.security_group_name, "${local.sanitized_name}-alb-sg")
+
+  base_tags = merge(
+    {
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    },
+    var.tags
+  )
+
+  lb_tags = merge(
+    local.base_tags,
+    {
+      Name = local.resolved_alb_name
+    }
+  )
+
+  target_group_tags = merge(
+    local.base_tags,
+    {
+      Name = local.resolved_target_name
+    }
+  )
+
+  security_group_tags = merge(
+    local.base_tags,
+    {
+      Name = local.resolved_security_group
+    }
+  )
+}
+
 resource "aws_lb" "main" {
-  name               = "${var.project_name}-alb"
+  name               = local.resolved_alb_name
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = var.public_subnet_ids
 
-  tags = var.tags
+  tags = local.lb_tags
 }
 
 resource "aws_security_group" "alb" {
-  name        = "${var.project_name}-alb-sg"
+  name        = local.resolved_security_group
   description = "Allow HTTP and HTTPS traffic to the ALB."
   vpc_id      = var.vpc_id
 
@@ -27,18 +63,18 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = var.tags
+  tags = local.security_group_tags
 }
 
 resource "aws_lb_target_group" "main" {
-  name        = "${var.project_name}-tg"
-  port        = var.container_port
+  name        = local.resolved_target_name
+  port        = var.target_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
   target_type = "ip"
 
   health_check {
-    path                = "/healthz"
+    path                = var.health_check_path
     protocol            = "HTTP"
     matcher             = "200"
     interval            = 30
@@ -47,7 +83,7 @@ resource "aws_lb_target_group" "main" {
     unhealthy_threshold = 2
   }
 
-  tags = var.tags
+  tags = local.target_group_tags
 }
 
 resource "aws_lb_listener" "http" {
