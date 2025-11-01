@@ -1,0 +1,22 @@
+name: Deploy Welcome Web
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docker/welcome-web/**'
+      - 'terraform/envs/welcome/**'
+      - 'terraform/modules/**'
+      - '.github/workflows/deploy-app.yml'
+      - '.github/workflows/deploy-welcome.yml'
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-app.yml
+    with:
+      app_name: welcome-web
+      dockerfile: docker/welcome-web/Dockerfile
+      context: docker/welcome-web
+      terraform_dir: terraform/envs/welcome
+    secrets: inherit

@@ -1,0 +1,23 @@
+name: Infrastructure CI (Modules)
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/modules/**'
+
+jobs:
+  plan-prod:
+    uses: ./.github/workflows/terraform-plan.yml
+    with:
+      terraform_dir: terraform/envs/prod
+      checkov_directory: terraform/envs/prod
+      plan_title: Terraform Plan (modules → prod)
+    secrets: inherit
+
+  plan-welcome:
+    uses: ./.github/workflows/terraform-plan.yml
+    with:
+      terraform_dir: terraform/envs/welcome
+      checkov_directory: terraform/envs/welcome
+      plan_title: Terraform Plan (modules → welcome)
+    secrets: inherit

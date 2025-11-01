@@ -1,0 +1,22 @@
+name: Deploy Log Analyzer
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'docker/Dockerfile'
+      - 'terraform/envs/prod/**'
+      - 'terraform/modules/**'
+      - '.github/workflows/deploy-app.yml'
+      - '.github/workflows/deploy-log-analyzer.yml'
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-app.yml
+    with:
+      app_name: log-analyzer
+      dockerfile: docker/Dockerfile
+      terraform_dir: terraform/envs/prod
+    secrets: inherit

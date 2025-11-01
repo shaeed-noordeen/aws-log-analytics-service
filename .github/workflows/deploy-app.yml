@@ -1,0 +1,102 @@
+name: Deploy App
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: Name of the application/ECR repository.
+        required: true
+        type: string
+      dockerfile:
+        description: Path to the Dockerfile to build.
+        required: true
+        type: string
+      context:
+        description: Build context for the Docker image.
+        required: false
+        default: .
+        type: string
+      terraform_dir:
+        description: Path to the Terraform environment to deploy.
+        required: true
+        type: string
+      acm_arn:
+        description: Optional ACM certificate ARN to pass to Terraform.
+        required: false
+        default: ""
+        type: string
+      skip_build:
+        description: Skip Docker build and push (for public/pre-built images).
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: eu-north-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Determine image tag
+        id: image
+        run: |
+          if [ "${{ inputs.skip_build }}" = "true" ]; then
+            IMAGE_TAG="latest"
+          else
+            IMAGE_TAG="${GITHUB_SHA::12}"
+          fi
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "repository=${{ steps.login-ecr.outputs.registry }}/${{ inputs.app_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        if: inputs.skip_build != true
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ inputs.app_name }}
+          IMAGE_TAG: ${{ steps.image.outputs.image_tag }}
+        run: |
+          docker build --file "${{ inputs.dockerfile }}" --tag "$REGISTRY/$REPOSITORY:$IMAGE_TAG" "${{ inputs.context }}"
+          docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
+
+      - name: Terraform Init
+        working-directory: ${{ inputs.terraform_dir }}
+        run: terraform init
+
+      - name: Terraform Apply
+        id: terraform
+        working-directory: ${{ inputs.terraform_dir }}
+        env:
+          TF_VAR_image_tag: ${{ steps.image.outputs.image_tag }}
+        run: |
+          set -e
+          ARGS="-auto-approve"
+          if [ -n "${{ inputs.acm_arn }}" ]; then
+            ARGS="$ARGS -var=acm_certificate_arn=${{ inputs.acm_arn }}"
+          fi
+          terraform apply $ARGS
+
+      - name: CloudFront URL
+        working-directory: ${{ inputs.terraform_dir }}
+        run: |
+          set -e
+          if terraform output -json cloudfront_domain_name >/tmp/cf.json 2>/dev/null; then
+            DOMAIN=$(terraform output -raw cloudfront_domain_name)
+            echo "CloudFront distribution: https://$DOMAIN"
+          else
+            echo "No cloudfront_domain_name output detected."
+          fi

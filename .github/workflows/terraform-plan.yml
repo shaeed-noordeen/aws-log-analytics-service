@@ -1,18 +1,36 @@
-name: Infrastructure CI
+name: Terraform Plan (Reusable)
 
 on:
-  pull_request:
-    paths:
-      - "terraform/**"
+  workflow_call:
+    inputs:
+      terraform_dir:
+        description: Path to the Terraform configuration directory.
+        required: true
+        type: string
+      checkov_directory:
+        description: Path to run Checkov against (defaults to terraform_dir when empty).
+        required: false
+        type: string
+        default: ""
+      plan_title:
+        description: Title used for the PR plan comment.
+        required: false
+        type: string
+        default: "Terraform Plan"
 
 jobs:
   plan:
-    if: github.event.pull_request.head.repo.fork == false
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
       pull-requests: write
+
+    env:
+      TERRAFORM_DIR: ${{ inputs.terraform_dir }}
+      CHECKOV_DIR: ${{ inputs.checkov_directory != '' && inputs.checkov_directory || inputs.terraform_dir }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,21 +47,21 @@ jobs:
       - name: Run Checkov on Terraform
         uses: bridgecrewio/checkov-action@v12
         with:
-          directory: terraform/envs/prod
+          directory: ${{ env.CHECKOV_DIR }}
           framework: terraform
           soft_fail: true
 
       - name: Terraform Init
-        run: terraform -chdir=terraform/envs/prod init
+        run: terraform -chdir="${{ env.TERRAFORM_DIR }}" init
 
       - name: Terraform Validate
-        run: terraform -chdir=terraform/envs/prod validate
+        run: terraform -chdir="${{ env.TERRAFORM_DIR }}" validate
 
       - name: Terraform Plan
         id: plan
         run: |
-          terraform -chdir=terraform/envs/prod plan -no-color -out=tfplan.binary
-          terraform -chdir=terraform/envs/prod show -no-color tfplan.binary > tfplan.txt
+          terraform -chdir="${{ env.TERRAFORM_DIR }}" plan -no-color -out=tfplan.binary
+          terraform -chdir="${{ env.TERRAFORM_DIR }}" show -no-color tfplan.binary > tfplan.txt
 
           {
             echo 'plan<<EOF'
@@ -52,15 +70,17 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Comment on PR
-        if: success()
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
           PLAN_OUTPUT: ${{ steps.plan.outputs.plan }}
+          PLAN_TITLE: ${{ inputs.plan_title }}
         with:
           script: |
             const plan = process.env.PLAN_OUTPUT || 'Plan output unavailable.';
+            const title = process.env.PLAN_TITLE || 'Terraform Plan';
             const body = [
-              '#### Terraform Plan',
+              `#### ${title}`,
               '',
               '```',
               plan,
