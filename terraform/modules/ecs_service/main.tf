@@ -1,90 +1,94 @@
-resource "aws_ecs_cluster" "main" {
-  name = "${var.project_name}-cluster"
+data "aws_region" "current" {}
 
-  tags = var.tags
+locals {
+  service_identifier = coalesce(var.name, var.service_name)
+
+  common_tags = merge(
+    {
+      Name        = "${local.service_identifier}-${var.environment}"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    },
+    var.tags
+  )
+
+  log_group_name = "/ecs/${local.service_identifier}-${var.environment}"
 }
 
-resource "aws_ecs_task_definition" "main" {
-  family                   = "${var.project_name}-task"
+resource "aws_ecs_cluster" "this" {
+  name = var.cluster_name
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_log_group" "this" {
+  name = local.log_group_name
+
+  tags = local.common_tags
+}
+
+resource "aws_ecs_task_definition" "this" {
+  family                   = "${local.service_identifier}-${var.environment}"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = var.cpu
   memory                   = var.memory
-  execution_role_arn       = var.task_execution_role_arn
+  execution_role_arn       = var.execution_role_arn
   task_role_arn            = var.task_role_arn
 
   container_definitions = jsonencode([
     {
-      name      = var.project_name,
-      image     = var.image,
-      essential = true,
+      name      = local.service_identifier
+      image     = var.container_image
+      essential = true
       portMappings = [
         {
-          containerPort = var.container_port,
+          containerPort = var.container_port
           hostPort      = var.container_port
+          protocol      = "tcp"
         }
-      ],
+      ]
       logConfiguration = {
-        logDriver = "awslogs",
+        logDriver = "awslogs"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.main.name,
-          "awslogs-region"        = var.aws_region,
-          "awslogs-stream-prefix" = var.project_name
+          "awslogs-group"         = aws_cloudwatch_log_group.this.name
+          "awslogs-region"        = data.aws_region.current.name
+          "awslogs-stream-prefix" = local.service_identifier
         }
       }
     }
   ])
 
-  tags = var.tags
+  tags = local.common_tags
 }
 
-resource "aws_ecs_service" "main" {
-  name            = "${var.project_name}-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.main.arn
+resource "aws_ecs_service" "this" {
+  name            = "${local.service_identifier}-${var.environment}"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.this.arn
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = var.private_subnet_ids
-    security_groups = [aws_security_group.ecs_service.id]
+    subnets          = var.subnet_ids
+    security_groups  = var.security_group_ids
+    assign_public_ip = false
   }
 
-  load_balancer {
-    target_group_arn = var.target_group_arn
-    container_name   = var.project_name
-    container_port   = var.container_port
+  dynamic "load_balancer" {
+    for_each = var.target_group_arn == null ? [] : [var.target_group_arn]
+    content {
+      target_group_arn = load_balancer.value
+      container_name   = local.service_identifier
+      container_port   = var.container_port
+    }
   }
 
-  depends_on = [var.alb_listener]
-
-  tags = var.tags
-}
-
-resource "aws_security_group" "ecs_service" {
-  name        = "${var.project_name}-ecs-service-sg"
-  description = "Allow traffic from the ALB to the ECS service."
-  vpc_id      = var.vpc_id
-
-  ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
-    protocol        = "tcp"
-    security_groups = [var.alb_security_group_id]
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  depends_on = var.additional_dependencies
 
-  tags = var.tags
-}
-
-resource "aws_cloudwatch_log_group" "main" {
-  name = "/ecs/${var.project_name}"
-
-  tags = var.tags
+  tags = local.common_tags
 }

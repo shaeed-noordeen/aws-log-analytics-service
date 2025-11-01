@@ -12,3 +12,8 @@ output "private_subnet_ids" {
   description = "A list of the private subnet IDs."
   value       = aws_subnet.private[*].id
 }
+
+output "app_security_group_id" {
+  description = "Security group ID for application workloads."
+  value       = aws_security_group.app.id
+}

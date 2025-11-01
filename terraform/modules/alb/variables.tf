@@ -1,6 +1,18 @@
-variable "project_name" {
-  description = "The name of the project."
+variable "name" {
+  description = "Base name for resources (service name)."
   type        = string
+}
+
+variable "environment" {
+  description = "Environment name, e.g. dev/stage/prod."
+  type        = string
+  default     = "prod"
+}
+
+variable "tags" {
+  description = "Extra tags to apply to all resources."
+  type        = map(string)
+  default     = {}
 }
 
 variable "vpc_id" {
@@ -9,28 +21,23 @@ variable "vpc_id" {
 }
 
 variable "public_subnet_ids" {
-  description = "A list of the public subnet IDs."
+  description = "Public subnet IDs to attach the ALB to."
   type        = list(string)
 }
 
-variable "container_port" {
-  description = "The port that the container listens on."
-  type        = number
-  default     = 8080
-}
-
 variable "certificate_arn" {
-  description = "The ARN of the ACM certificate for the ALB."
+  description = "ACM certificate ARN for HTTPS listener."
   type        = string
 }
 
-variable "origin_verify_header_value" {
-  description = "The value of the X-Origin-Verify header."
-  type        = string
+variable "target_port" {
+  description = "Port that the target group forwards to."
+  type        = number
+  default     = 80
 }
 
-variable "tags" {
-  description = "A map of tags to apply to all resources."
-  type        = map(string)
-  default     = {}
+variable "health_check_path" {
+  description = "HTTP path used for target group health checks."
+  type        = string
+  default     = "/"
 }

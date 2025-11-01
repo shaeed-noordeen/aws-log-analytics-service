@@ -1,14 +1,22 @@
+locals {
+  sanitized_name = replace(lower(var.name), "/[^a-z0-9-]/", "-")
+
+  common_tags = merge(
+    {
+      Name        = "${local.sanitized_name}-${var.environment}"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    },
+    var.tags
+  )
+}
+
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-vpc"
-    },
-  )
+  tags = local.common_tags
 }
 
 resource "aws_subnet" "public" {
@@ -18,12 +26,7 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
   availability_zone       = data.aws_availability_zones.available.names[count.index]
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-public-subnet-${count.index + 1}"
-    },
-  )
+  tags = local.common_tags
 }
 
 resource "aws_subnet" "private" {
@@ -32,23 +35,13 @@ resource "aws_subnet" "private" {
   cidr_block        = cidrsubnet(aws_vpc.main.cidr_block, 8, var.az_count + count.index)
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-private-subnet-${count.index + 1}"
-    },
-  )
+  tags = local.common_tags
 }
 
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-igw"
-    },
-  )
+  tags = local.common_tags
 }
 
 resource "aws_route_table" "public" {
@@ -59,12 +52,7 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.main.id
   }
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-public-rt"
-    },
-  )
+  tags = local.common_tags
 }
 
 resource "aws_route_table_association" "public" {
@@ -77,12 +65,7 @@ resource "aws_eip" "nat" {
   count  = var.az_count
   domain = "vpc"
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-nat-eip-${count.index + 1}"
-    },
-  )
+  tags = local.common_tags
 }
 
 resource "aws_nat_gateway" "main" {
@@ -90,12 +73,7 @@ resource "aws_nat_gateway" "main" {
   allocation_id = aws_eip.nat[count.index].id
   subnet_id     = aws_subnet.public[count.index].id
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-nat-gw-${count.index + 1}"
-    },
-  )
+  tags = local.common_tags
 }
 
 resource "aws_route_table" "private" {
@@ -107,12 +85,7 @@ resource "aws_route_table" "private" {
     nat_gateway_id = aws_nat_gateway.main[count.index].id
   }
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-private-rt-${count.index + 1}"
-    },
-  )
+  tags = local.common_tags
 }
 
 resource "aws_route_table_association" "private" {
@@ -126,18 +99,28 @@ resource "aws_vpc_endpoint" "s3" {
   service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-s3-endpoint"
-    },
-  )
+  tags = local.common_tags
 }
 
 resource "aws_vpc_endpoint_route_table_association" "private_s3" {
   count           = var.az_count
   route_table_id  = aws_route_table.private[count.index].id
   vpc_endpoint_id = aws_vpc_endpoint.s3.id
+}
+
+resource "aws_security_group" "app" {
+  name        = "${local.sanitized_name}-${var.environment}-app-sg"
+  description = "Security group for ${var.name} application resources."
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = local.common_tags
 }
 
 data "aws_availability_zones" "available" {

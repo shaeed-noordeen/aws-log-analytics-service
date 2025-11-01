@@ -1,3 +1,20 @@
+variable "name" {
+  description = "Base name for resources (service name)."
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name, e.g. dev/stage/prod."
+  type        = string
+  default     = "prod"
+}
+
+variable "tags" {
+  description = "Extra tags to apply to all resources."
+  type        = map(string)
+  default     = {}
+}
+
 variable "vpc_cidr" {
   description = "The CIDR block for the VPC."
   type        = string
@@ -8,17 +25,6 @@ variable "az_count" {
   description = "The number of Availability Zones to use."
   type        = number
   default     = 2
-}
-
-variable "project_name" {
-  description = "The name of the project."
-  type        = string
-}
-
-variable "tags" {
-  description = "A map of tags to apply to all resources."
-  type        = map(string)
-  default     = {}
 }
 
 variable "aws_region" {

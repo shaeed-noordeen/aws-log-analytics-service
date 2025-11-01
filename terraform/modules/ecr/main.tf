@@ -1,12 +1,30 @@
+locals {
+  sanitized_name = replace(lower(var.name), "/[^a-z0-9-]/", "-")
+
+  repository_name = coalesce(
+    var.repository_name,
+    "${local.sanitized_name}-${var.environment}"
+  )
+
+  common_tags = merge(
+    {
+      Name        = "${local.sanitized_name}-${var.environment}"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    },
+    var.tags
+  )
+}
+
 resource "aws_ecr_repository" "main" {
-  name                 = var.repository_name
+  name                 = local.repository_name
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
   }
 
-  tags = var.tags
+  tags = local.common_tags
 }
 
 resource "aws_ecr_lifecycle_policy" "main" {

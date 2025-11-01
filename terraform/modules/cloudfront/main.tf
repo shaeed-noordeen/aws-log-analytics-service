@@ -1,82 +1,23 @@
-resource "aws_cloudfront_distribution" "main" {
-  origin {
-    domain_name = var.origin_hostname != null && length(trimspace(var.origin_hostname)) > 0 ? trimspace(var.origin_hostname) : var.alb_dns_name
-    origin_id   = "alb-origin"
+locals {
+  sanitized_name  = replace(lower(var.name), "/[^a-z0-9-]/", "-")
+  resource_prefix = "${local.sanitized_name}-${var.environment}"
+  origin_id       = "${local.resource_prefix}-origin"
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-
-    custom_header {
-      name  = "X-Origin-Verify"
-      value = var.origin_verify_header_value
-    }
-  }
-
-  enabled             = true
-  is_ipv6_enabled     = true
-  comment             = "Distribution for ${var.project_name}"
-  default_root_object = "index.html"
-
-  default_cache_behavior {
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "alb-origin"
-
-    forwarded_values {
-      query_string = true
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "/analyze"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "alb-origin"
-
-    forwarded_values {
-      query_string = true
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
-  }
-
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-
-  viewer_certificate {
-    cloudfront_default_certificate = true
-  }
-
-  web_acl_id = aws_wafv2_web_acl.main.arn
-
-  tags = var.tags
+  common_tags = merge(
+    {
+      Name        = local.resource_prefix
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    },
+    var.tags
+  )
 }
 
-resource "aws_wafv2_web_acl" "main" {
+resource "aws_wafv2_web_acl" "this" {
   provider = aws.us-east-1
-  name     = "${var.project_name}-waf"
+  name     = "${local.resource_prefix}-waf"
   scope    = "CLOUDFRONT"
+
   default_action {
     allow {}
   }
@@ -98,16 +39,74 @@ resource "aws_wafv2_web_acl" "main" {
 
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name                = "aws-managed-rules-common-rule-set"
+      metric_name                = "${local.sanitized_name}-aws-managed-rules"
       sampled_requests_enabled   = true
     }
   }
 
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name                = "waf-metrics"
+    metric_name                = "${local.sanitized_name}-waf"
     sampled_requests_enabled   = true
   }
 
-  tags = var.tags
+  tags = local.common_tags
+}
+
+resource "aws_cloudfront_distribution" "this" {
+  origin {
+    domain_name = var.origin_domain_name
+    origin_id   = local.origin_id
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = var.origin_protocol_policy
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+
+    dynamic "origin_custom_header" {
+      for_each = var.custom_origin_header_name == null ? [] : [var.custom_origin_header_name]
+      content {
+        name  = var.custom_origin_header_name
+        value = var.custom_origin_header_value
+      }
+    }
+  }
+
+  enabled         = true
+  is_ipv6_enabled = true
+  comment         = "Distribution for ${local.resource_prefix}"
+
+  default_cache_behavior {
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = local.origin_id
+
+    forwarded_values {
+      query_string = true
+      cookies {
+        forward = "none"
+      }
+    }
+
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  web_acl_id = aws_wafv2_web_acl.this.arn
+
+  tags = local.common_tags
 }
