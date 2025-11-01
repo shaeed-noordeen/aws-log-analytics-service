@@ -30,6 +30,24 @@ variable "certificate_arn" {
   type        = string
 }
 
+variable "alb_name" {
+  description = "Load balancer name (defaults to <name>-alb)."
+  type        = string
+  default     = null
+}
+
+variable "target_group_name" {
+  description = "Target group name (defaults to <name>-tg)."
+  type        = string
+  default     = null
+}
+
+variable "security_group_name" {
+  description = "ALB security group name (defaults to <name>-alb-sg)."
+  type        = string
+  default     = null
+}
+
 variable "target_port" {
   description = "Port that the target group forwards to."
   type        = number

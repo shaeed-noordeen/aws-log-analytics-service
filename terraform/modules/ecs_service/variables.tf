@@ -26,9 +26,27 @@ variable "cluster_name" {
   type        = string
 }
 
+variable "ecs_service_name" {
+  description = "Name to assign to the ECS service (defaults to <service_name>-service)."
+  type        = string
+  default     = null
+}
+
+variable "task_definition_family" {
+  description = "Task definition family name (defaults to <service_name>-task)."
+  type        = string
+  default     = null
+}
+
 variable "container_image" {
   description = "Container image to deploy."
   type        = string
+}
+
+variable "container_name" {
+  description = "Container name inside the task definition (defaults to <service_name>)."
+  type        = string
+  default     = null
 }
 
 variable "container_port" {
@@ -53,8 +71,37 @@ variable "subnet_ids" {
 }
 
 variable "security_group_ids" {
-  description = "Security group IDs attached to ECS tasks."
+  description = "Security group IDs to attach to the tasks. Leave empty to let the module create one."
   type        = list(string)
+  default     = []
+}
+
+variable "service_security_group_name" {
+  description = "Name for the managed service security group when created."
+  type        = string
+  default     = null
+}
+
+variable "vpc_id" {
+  description = "VPC ID used when creating the managed service security group."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = length(var.security_group_ids) > 0 || var.vpc_id != null
+    error_message = "Provide vpc_id when security_group_ids is empty to allow the module to create a security group."
+  }
+}
+
+variable "alb_security_group_id" {
+  description = "ALB security group ID allowed to reach the service security group."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = length(var.security_group_ids) > 0 || var.alb_security_group_id != null
+    error_message = "Provide alb_security_group_id when security_group_ids is empty so ingress can be configured."
+  }
 }
 
 variable "cpu" {
@@ -81,8 +128,8 @@ variable "target_group_arn" {
   default     = null
 }
 
-variable "additional_dependencies" {
-  description = "Optional resources that the ECS service should depend on."
-  type        = list(any)
-  default     = []
+variable "log_group_name" {
+  description = "CloudWatch Logs group name (defaults to /ecs/<service_name>)."
+  type        = string
+  default     = null
 }

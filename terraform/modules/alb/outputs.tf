@@ -1,16 +1,16 @@
 output "alb_dns_name" {
   description = "The DNS name of the ALB."
-  value       = aws_lb.this.dns_name
+  value       = aws_lb.main.dns_name
 }
 
 output "alb_security_group_id" {
   description = "The ID of the ALB's security group."
-  value       = aws_security_group.this.id
+  value       = aws_security_group.alb.id
 }
 
 output "target_group_arn" {
   description = "The ARN of the ALB target group."
-  value       = aws_lb_target_group.this.arn
+  value       = aws_lb_target_group.main.arn
 }
 
 output "listener" {
@@ -20,5 +20,5 @@ output "listener" {
 
 output "alb_zone_id" {
   description = "The Route 53 hosted zone ID for the ALB."
-  value       = aws_lb.this.zone_id
+  value       = aws_lb.main.zone_id
 }

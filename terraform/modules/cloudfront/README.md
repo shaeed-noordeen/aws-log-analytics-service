@@ -13,6 +13,11 @@ Provisions a CloudFront distribution backed by a custom origin, with optional cu
 | `origin_protocol_policy` | Protocol policy CloudFront uses to reach the origin. | `string` | `"https-only"` | no |
 | `custom_origin_header_name` | Optional header name to send to the origin. Provide together with the value. | `string` | `null` | no |
 | `custom_origin_header_value` | Optional header value to send to the origin. Provide together with the name. | `string` | `null` | no |
+| `origin_id` | Identifier to use for the origin inside the distribution. | `string` | `"alb-origin"` | no |
+| `comment` | Distribution comment field. | `string` | `null` | no |
+| `default_root_object` | Default root object served by CloudFront. | `string` | `"index.html"` | no |
+| `waf_name` | WAF ACL name (defaults to `<name>-waf`). | `string` | `null` | no |
+| `ordered_cache_behaviors` | Ordered cache behaviors (path pattern, TTLs, forwarding modes). | `list(object)` | see module for default | no |
 
 ## Outputs
 

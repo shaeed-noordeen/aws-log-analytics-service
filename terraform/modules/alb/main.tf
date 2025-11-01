@@ -1,33 +1,51 @@
 locals {
-  sanitized_name = replace(lower(var.name), "/[^a-z0-9-]/", "-")
-  resource_prefix = "${local.sanitized_name}-${var.environment}"
+  sanitized_name          = replace(lower(var.name), "/[^a-z0-9-]/", "-")
+  resolved_alb_name       = substr(coalesce(var.alb_name, "${local.sanitized_name}-alb"), 0, 32)
+  resolved_target_name    = substr(coalesce(var.target_group_name, "${local.sanitized_name}-tg"), 0, 32)
+  resolved_security_group = coalesce(var.security_group_name, "${local.sanitized_name}-alb-sg")
 
-  common_tags = merge(
+  base_tags = merge(
     {
-      Name        = local.resource_prefix
       Environment = var.environment
       ManagedBy   = "terraform"
     },
     var.tags
   )
 
-  alb_name          = substr("${local.resource_prefix}-alb", 0, 32)
-  target_group_name = substr("${local.resource_prefix}-tg", 0, 32)
-  security_group_name = "${local.resource_prefix}-alb-sg"
+  lb_tags = merge(
+    local.base_tags,
+    {
+      Name = local.resolved_alb_name
+    }
+  )
+
+  target_group_tags = merge(
+    local.base_tags,
+    {
+      Name = local.resolved_target_name
+    }
+  )
+
+  security_group_tags = merge(
+    local.base_tags,
+    {
+      Name = local.resolved_security_group
+    }
+  )
 }
 
-resource "aws_lb" "this" {
-  name               = local.alb_name
+resource "aws_lb" "main" {
+  name               = local.resolved_alb_name
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.this.id]
+  security_groups    = [aws_security_group.alb.id]
   subnets            = var.public_subnet_ids
 
-  tags = local.common_tags
+  tags = local.lb_tags
 }
 
-resource "aws_security_group" "this" {
-  name        = local.security_group_name
+resource "aws_security_group" "alb" {
+  name        = local.resolved_security_group
   description = "Allow HTTP and HTTPS traffic to the ALB."
   vpc_id      = var.vpc_id
 
@@ -45,11 +63,11 @@ resource "aws_security_group" "this" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = local.common_tags
+  tags = local.security_group_tags
 }
 
-resource "aws_lb_target_group" "this" {
-  name        = local.target_group_name
+resource "aws_lb_target_group" "main" {
+  name        = local.resolved_target_name
   port        = var.target_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -65,11 +83,11 @@ resource "aws_lb_target_group" "this" {
     unhealthy_threshold = 2
   }
 
-  tags = local.common_tags
+  tags = local.target_group_tags
 }
 
 resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.this.arn
+  load_balancer_arn = aws_lb.main.arn
   port              = 80
   protocol          = "HTTP"
 
@@ -88,7 +106,7 @@ data "aws_ec2_managed_prefix_list" "cloudfront" {
 }
 
 resource "aws_lb_listener" "https" {
-  load_balancer_arn = aws_lb.this.arn
+  load_balancer_arn = aws_lb.main.arn
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-2016-08"
@@ -96,6 +114,6 @@ resource "aws_lb_listener" "https" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.this.arn
+    target_group_arn = aws_lb_target_group.main.arn
   }
 }

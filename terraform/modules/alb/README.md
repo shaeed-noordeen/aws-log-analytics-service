@@ -12,6 +12,9 @@ Creates an internet-facing Application Load Balancer with listeners, security gr
 | `vpc_id` | VPC ID for the load balancer. | `string` | n/a | yes |
 | `public_subnet_ids` | Subnet IDs for ALB placement. | `list(string)` | n/a | yes |
 | `certificate_arn` | ACM certificate ARN for HTTPS listener. | `string` | n/a | yes |
+| `alb_name` | Load balancer name (defaults to `<name>-alb`). | `string` | `null` | no |
+| `target_group_name` | Target group name (defaults to `<name>-tg`). | `string` | `null` | no |
+| `security_group_name` | ALB security group name (defaults to `<name>-alb-sg`). | `string` | `null` | no |
 | `target_port` | Port that the target group forwards to. | `number` | `80` | no |
 | `health_check_path` | HTTP path used for target group health checks. | `string` | `"/"` | no |
 

@@ -47,3 +47,55 @@ variable "custom_origin_header_value" {
   type        = string
   default     = null
 }
+
+variable "origin_id" {
+  description = "Identifier used for the origin within the distribution."
+  type        = string
+  default     = "alb-origin"
+}
+
+variable "comment" {
+  description = "Comment applied to the CloudFront distribution."
+  type        = string
+  default     = null
+}
+
+variable "default_root_object" {
+  description = "Default root object served by CloudFront."
+  type        = string
+  default     = "index.html"
+}
+
+variable "waf_name" {
+  description = "WAF ACL name (defaults to <name>-waf)."
+  type        = string
+  default     = null
+}
+
+variable "ordered_cache_behaviors" {
+  description = "Ordered cache behaviors to configure for the distribution."
+  type = list(object({
+    path_pattern          = string
+    allowed_methods       = list(string)
+    cached_methods        = list(string)
+    viewer_protocol_policy = string
+    min_ttl               = number
+    default_ttl           = number
+    max_ttl               = number
+    forward_query_string  = bool
+    forward_cookies       = string
+  }))
+  default = [
+    {
+      path_pattern           = "/analyze"
+      allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+      cached_methods         = ["GET", "HEAD"]
+      viewer_protocol_policy = "redirect-to-https"
+      min_ttl                = 0
+      default_ttl            = 0
+      max_ttl                = 0
+      forward_query_string   = true
+      forward_cookies        = "none"
+    }
+  ]
+}

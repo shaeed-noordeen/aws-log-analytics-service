@@ -12,6 +12,9 @@ Creates IAM task and execution roles for ECS services, optionally attaching an S
 | `service_name` | Service identifier used for IAM role and policy names. | `string` | n/a | yes |
 | `attach_s3_read` | Attach an S3 read-only policy to the task role. | `bool` | `false` | no |
 | `allowed_s3_buckets` | List of S3 bucket names the task role can read when `attach_s3_read` is `true`. | `list(string)` | `[]` | no |
+| `task_role_name` | IAM task role name (defaults to `<service_name>-ecs-task-role`). | `string` | `null` | no |
+| `execution_role_name` | IAM execution role name (defaults to `<service_name>-ecs-task-execution-role`). | `string` | `null` | no |
+| `s3_policy_name` | S3 read policy name (defaults to `<service_name>-s3-access-policy`). | `string` | `null` | no |
 
 When `attach_s3_read` is `true`, provide at least one entry in `allowed_s3_buckets`.
 

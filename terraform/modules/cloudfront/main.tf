@@ -1,21 +1,21 @@
 locals {
-  sanitized_name  = replace(lower(var.name), "/[^a-z0-9-]/", "-")
-  resource_prefix = "${local.sanitized_name}-${var.environment}"
-  origin_id       = "${local.resource_prefix}-origin"
+  sanitized_name = replace(lower(var.name), "/[^a-z0-9-]/", "-")
 
-  common_tags = merge(
+  base_tags = merge(
     {
-      Name        = local.resource_prefix
       Environment = var.environment
       ManagedBy   = "terraform"
     },
     var.tags
   )
+
+  waf_name        = coalesce(var.waf_name, "${local.sanitized_name}-waf")
+  distribution_comment = coalesce(var.comment, "Distribution for ${var.name}")
 }
 
-resource "aws_wafv2_web_acl" "this" {
+resource "aws_wafv2_web_acl" "main" {
   provider = aws.us-east-1
-  name     = "${local.resource_prefix}-waf"
+  name     = local.waf_name
   scope    = "CLOUDFRONT"
 
   default_action {
@@ -39,24 +39,29 @@ resource "aws_wafv2_web_acl" "this" {
 
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name                = "${local.sanitized_name}-aws-managed-rules"
+      metric_name                = "aws-managed-rules-common-rule-set"
       sampled_requests_enabled   = true
     }
   }
 
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name                = "${local.sanitized_name}-waf"
+    metric_name                = "waf-metrics"
     sampled_requests_enabled   = true
   }
 
-  tags = local.common_tags
+  tags = merge(
+    local.base_tags,
+    {
+      Name = local.waf_name
+    }
+  )
 }
 
-resource "aws_cloudfront_distribution" "this" {
+resource "aws_cloudfront_distribution" "main" {
   origin {
     domain_name = var.origin_domain_name
-    origin_id   = local.origin_id
+    origin_id   = var.origin_id
 
     custom_origin_config {
       http_port              = 80
@@ -65,7 +70,7 @@ resource "aws_cloudfront_distribution" "this" {
       origin_ssl_protocols   = ["TLSv1.2"]
     }
 
-    dynamic "origin_custom_header" {
+    dynamic "custom_header" {
       for_each = var.custom_origin_header_name == null ? [] : [var.custom_origin_header_name]
       content {
         name  = var.custom_origin_header_name
@@ -74,14 +79,15 @@ resource "aws_cloudfront_distribution" "this" {
     }
   }
 
-  enabled         = true
-  is_ipv6_enabled = true
-  comment         = "Distribution for ${local.resource_prefix}"
+  enabled             = true
+  is_ipv6_enabled     = true
+  comment             = local.distribution_comment
+  default_root_object = var.default_root_object
 
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = local.origin_id
+    target_origin_id = var.origin_id
 
     forwarded_values {
       query_string = true
@@ -96,6 +102,28 @@ resource "aws_cloudfront_distribution" "this" {
     max_ttl                = 86400
   }
 
+  dynamic "ordered_cache_behavior" {
+    for_each = var.ordered_cache_behaviors
+    content {
+      path_pattern     = ordered_cache_behavior.value.path_pattern
+      allowed_methods  = ordered_cache_behavior.value.allowed_methods
+      cached_methods   = ordered_cache_behavior.value.cached_methods
+      target_origin_id = var.origin_id
+
+      forwarded_values {
+        query_string = ordered_cache_behavior.value.forward_query_string
+        cookies {
+          forward = ordered_cache_behavior.value.forward_cookies
+        }
+      }
+
+      viewer_protocol_policy = ordered_cache_behavior.value.viewer_protocol_policy
+      min_ttl                = ordered_cache_behavior.value.min_ttl
+      default_ttl            = ordered_cache_behavior.value.default_ttl
+      max_ttl                = ordered_cache_behavior.value.max_ttl
+    }
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
@@ -106,7 +134,7 @@ resource "aws_cloudfront_distribution" "this" {
     cloudfront_default_certificate = true
   }
 
-  web_acl_id = aws_wafv2_web_acl.this.arn
+  web_acl_id = aws_wafv2_web_acl.main.arn
 
-  tags = local.common_tags
+  tags = local.base_tags
 }

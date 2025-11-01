@@ -37,3 +37,21 @@ variable "allowed_s3_buckets" {
     error_message = "When attach_s3_read is true, provide at least one bucket in allowed_s3_buckets."
   }
 }
+
+variable "task_role_name" {
+  description = "Name to assign to the IAM task role (defaults to <service_name>-ecs-task-role)."
+  type        = string
+  default     = null
+}
+
+variable "execution_role_name" {
+  description = "Name to assign to the IAM execution role (defaults to <service_name>-ecs-task-execution-role)."
+  type        = string
+  default     = null
+}
+
+variable "s3_policy_name" {
+  description = "Name for the optional S3 access policy (defaults to <service_name>-s3-access-policy)."
+  type        = string
+  default     = null
+}
