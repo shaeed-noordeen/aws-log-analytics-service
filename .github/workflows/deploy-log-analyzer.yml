@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths:
-      - 'app/**'
-      - 'docker/Dockerfile'
-      - 'terraform/envs/prod/**'
-      - 'terraform/modules/**'
-      - '.github/workflows/deploy-app.yml'
-      - '.github/workflows/deploy-log-analyzer.yml'
+      - "log_analyzer/app/**"
+      - "log_analyzer/app/Dockerfile"
+      - "log_analyzer/app/terraform/envs/prod/**"
+      - "terraform_modules/**"
+      - ".github/workflows/deploy-app.yml"
+      - ".github/workflows/deploy-log-analyzer.yml"
 
 permissions:
   id-token: write
@@ -21,6 +21,7 @@ jobs:
     uses: ./.github/workflows/deploy-app.yml
     with:
       app_name: log-analyzer
-      dockerfile: docker/Dockerfile
-      terraform_dir: terraform/envs/prod
+      dockerfile: log_analyzer/app/Dockerfile
+      context: log_analyzer/app
+      terraform_dir: log_analyzer/app/terraform/envs/prod
     secrets: inherit

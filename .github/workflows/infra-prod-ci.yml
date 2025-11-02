@@ -3,7 +3,9 @@ name: Infrastructure CI (Prod)
 on:
   pull_request:
     paths:
-      - 'terraform/envs/prod/**'
+      - 'terraform_modules/**'
+      - 'log_analyzer/app/terraform/**'
+      - 'welcome-website/terraform/**'
 
 permissions:
   contents: read
@@ -14,7 +16,7 @@ jobs:
   plan:
     uses: ./.github/workflows/terraform-plan.yml
     with:
-      terraform_dir: terraform/envs/prod
-      checkov_directory: terraform/envs/prod
+      terraform_dir: log_analyzer/app/terraform/envs/prod
+      checkov_directory: log_analyzer/app/terraform/envs/prod
       plan_title: Terraform Plan (prod)
     secrets: inherit

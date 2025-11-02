@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'docker/welcome-web/**'
-      - 'terraform/envs/welcome/**'
-      - 'terraform/modules/**'
+      - 'welcome-website/app/**'
+      - 'welcome-website/terraform/envs/welcome/**'
+      - 'terraform_modules/**'
       - '.github/workflows/deploy-app.yml'
       - '.github/workflows/deploy-welcome.yml'
 
@@ -20,8 +20,8 @@ jobs:
     uses: ./.github/workflows/deploy-app.yml
     with:
       app_name: welcome-web
-      dockerfile: docker/welcome-web/Dockerfile
-      context: docker/welcome-web
-      terraform_dir: terraform/envs/welcome
+      dockerfile: welcome-website/app/Dockerfile
+      context: welcome-website/app
+      terraform_dir: welcome-website/terraform/envs/welcome
       smoke_test_path: /
     secrets: inherit
