@@ -8,7 +8,7 @@ locals {
 }
 
 module "network" {
-  source      = "../../../terraform_modules/network"
+  source      = "../../../../terraform_modules/network"
   name        = local.service_name
   environment = local.environment
   aws_region  = var.aws_region
@@ -16,7 +16,7 @@ module "network" {
 }
 
 module "ecr" {
-  source          = "../../../terraform_modules/ecr"
+  source          = "../../../../terraform_modules/ecr"
   name            = local.service_name
   environment     = local.environment
   repository_name = local.service_name
@@ -24,7 +24,7 @@ module "ecr" {
 }
 
 module "iam" {
-  source              = "../../../terraform_modules/iam"
+  source              = "../../../../terraform_modules/iam"
   name                = local.service_name
   environment         = local.environment
   service_name        = local.service_name
@@ -34,7 +34,7 @@ module "iam" {
 }
 
 module "alb" {
-  source              = "../../../terraform_modules/alb"
+  source              = "../../../../terraform_modules/alb"
   name                = local.service_name
   environment         = local.environment
   vpc_id              = module.network.vpc_id
@@ -49,7 +49,7 @@ module "alb" {
 }
 
 module "ecs_service" {
-  source                 = "../../../terraform_modules/ecs_service"
+  source                 = "../../../../terraform_modules/ecs_service"
   name                   = local.service_name
   environment            = local.environment
   service_name           = local.service_name
@@ -70,7 +70,7 @@ module "ecs_service" {
 }
 
 module "cloudfront" {
-  source                 = "../../../terraform_modules/cloudfront"
+  source                 = "../../../../terraform_modules/cloudfront"
   name                   = local.service_name
   environment            = local.environment
   origin_domain_name     = "alb-origin-welcome.shaeed.co.uk"
