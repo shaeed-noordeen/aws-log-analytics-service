@@ -73,7 +73,7 @@ module "cloudfront" {
   source                 = "../../../terraform_modules/cloudfront"
   name                   = local.service_name
   environment            = local.environment
-  origin_domain_name     = var.origin_hostname != "" ? var.origin_hostname : module.alb.alb_dns_name
+  origin_domain_name     = "alb-origin-welcome.shaeed.co.uk"
   origin_protocol_policy = "https-only"
   comment                = "Distribution for welcome-web"
   tags                   = local.base_tags
