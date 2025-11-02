@@ -14,4 +14,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build welcome-web image
-        run: docker build -f docker/welcome-web/Dockerfile .
+        run: docker build -f docker/welcome-web/Dockerfile docker/welcome-web
