@@ -11,7 +11,7 @@ variable "image_tag" {
 }
 
 variable "origin_hostname" {
-  description = "Optional external DNS name that CloudFront should use to reach the ALB."
+  description = "Optional attachment of external DNS name that CloudFront should use to reach the ALB."
   type        = string
   default     = ""
 }
