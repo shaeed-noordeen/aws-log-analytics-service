@@ -14,7 +14,7 @@ This repository contains **two services** that run on AWS by reusing the shared 
 - **What it is:** A simple containerised "Welcome / Hello" HTTP endpoint to prove the same infra pattern works for a static or lightweight service.
 - **Where:** `welcome-website/app/`
 - **How it's deployed:** `welcome-website/terraform/envs/welcome/`
-- **Docs:** [Terraform env README](welcome-website/terraform/envs/welcome/README.md)
+- **Docs:** [Terraform env README](welcome-website/terraform/README.md)
 
 ## Infrastructure
 
