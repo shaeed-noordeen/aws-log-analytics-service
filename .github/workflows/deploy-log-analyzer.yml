@@ -12,6 +12,10 @@ on:
       - '.github/workflows/deploy-app.yml'
       - '.github/workflows/deploy-log-analyzer.yml'
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   deploy:
     uses: ./.github/workflows/deploy-app.yml
