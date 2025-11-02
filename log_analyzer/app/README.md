@@ -134,20 +134,20 @@ This app is a long-running HTTP service: it exposes `/healthz`, it must be probe
 **Why ECS Fargate**  
 We needed to run a container inside a VPC, keep it up, register it in a target group, and not manage EC2. ECS Fargate gives us:
 
-* no EC2/AMI/patching,
-* native integration with ALB target groups and health checks,
-* private subnets + security groups,
-* a straightforward path from "CI built an image" -> "run that image".
+- no EC2/AMI/patching,
+- native integration with ALB target groups and health checks,
+- private subnets + security groups,
+- a straightforward path from "CI built an image" -> "run that image".
 
 EKS would have been cluster overhead for one small service; EC2 would have added OS management.
 
 **Why ALB**  
 ALB gives us:
 
-* a stable HTTP origin for CloudFront,
-* `/healthz` health checks,
-* the ability to lock inbound to "only CloudFront" using the AWS-managed prefix list,
-* clean mapping from URL -> ECS task.
+- a stable HTTP origin for CloudFront,
+- `/healthz` health checks,
+- the ability to lock inbound to "only CloudFront" using the AWS-managed prefix list,
+- clean mapping from URL -> ECS task.
 
 **Why CloudFront**  
 CloudFront sits in front because the platform task required the service to be reachable at a CloudFront URL. It also gives us a single public endpoint, future WAF, and the option to keep the ALB effectively private.
@@ -158,12 +158,9 @@ Right now we read "the latest object under a prefix". That matches how the sampl
 ---
 
 ## 5. Limitations / next steps
-
-* Checkov is in the repo but we are not failing the pipeline on its findings (time-boxed).
-* No static analysis (Ruff/Bandit/SonarQube) in CI yet — should be added.
-* Terraform modules are not versioned — in a real setup we would tag `terraform_modules/` and pin envs to versions.
-* No authentication on the HTTP API — `/analyze` is open. In a real environment this would sit behind Cognito, an API key, or at least CloudFront signed headers.
-* Alerting is local only — we return `{"alert": true}` but do not push to SNS / EventBridge / Slack. Next step would be to publish alerts to SNS so ops gets notified.
-* Single environment shown — we wired `prod` to keep it simple. Normally we would have `dev/stage/prod` workspaces or separate env folders sharing the same modules.
-* Image/security scanning not enforced — we build and push to ECR, but we are not failing the pipeline on image scan / Checkov yet.
-* Modules not versioned — `terraform_modules/` is used from source; in a team setup we would tag module releases and pin envs to those tags.
+- No static analysis (Ruff/Bandit/SonarQube) in CI yet — should be added.
+- Terraform modules are not versioned — in a real setup we would tag `terraform_modules/` and pin envs to versions.
+- No authentication on the HTTP API — `/analyze` is open. In a real environment this would sit behind Cognito, an API key, or at least CloudFront signed headers.
+- Alerting is local only — we return `{"alert": true}` but do not push to SNS / EventBridge / Slack. Next step would be to publish alerts to SNS so ops gets notified.
+- Single environment shown — we wired `prod` to keep it simple. Normally we would have `dev/stage/prod` workspaces or separate env folders sharing the same modules.
+- Image/security scanning not enforced — we build and push to ECR, but we are not failing the pipeline on image scan / Checkov yet.
