@@ -1,0 +1,20 @@
+name: Infrastructure CI (Welcome)
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/envs/welcome/**'
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  plan:
+    uses: ./.github/workflows/terraform-plan.yml
+    with:
+      terraform_dir: terraform/envs/welcome
+      checkov_directory: terraform/envs/welcome
+      plan_title: Terraform Plan (welcome)
+    secrets: inherit

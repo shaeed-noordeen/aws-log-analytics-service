@@ -1,0 +1,17 @@
+name: Docker CI (Welcome)
+
+on:
+  pull_request:
+    paths:
+      - 'docker/welcome-web/**'
+      - 'docker/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build welcome-web image
+        run: docker build -f docker/welcome-web/Dockerfile docker/welcome-web
