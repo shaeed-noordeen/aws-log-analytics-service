@@ -23,4 +23,5 @@ jobs:
       dockerfile: docker/welcome-web/Dockerfile
       context: docker/welcome-web
       terraform_dir: terraform/envs/welcome
+      smoke_test_path: /
     secrets: inherit

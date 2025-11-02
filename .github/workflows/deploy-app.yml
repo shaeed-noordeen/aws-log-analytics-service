@@ -25,6 +25,11 @@ on:
         required: false
         default: ""
         type: string
+      smoke_test_path:
+        description: Path to query during smoke test (default /healthz).
+        required: false
+        default: "/healthz"
+        type: string
       skip_build:
         description: Skip Docker build and push (for public/pre-built images).
         required: false
@@ -72,6 +77,8 @@ jobs:
         run: |
           docker build --file "${{ inputs.dockerfile }}" --tag "$REGISTRY/$REPOSITORY:$IMAGE_TAG" "${{ inputs.context }}"
           docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
+          docker tag "$REGISTRY/$REPOSITORY:$IMAGE_TAG" "$REGISTRY/$REPOSITORY:latest"
+          docker push "$REGISTRY/$REPOSITORY:latest"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -93,13 +100,29 @@ jobs:
           fi
           terraform apply $ARGS
 
-      - name: CloudFront URL
+      - name: Get CloudFront URL
+        id: get-url
         working-directory: ${{ inputs.terraform_dir }}
         run: |
+          set +e
+          terraform output -json cloudfront_domain_name >/tmp/cf.json
+          STATUS=$?
           set -e
-          if terraform output -json cloudfront_domain_name >/tmp/cf.json 2>/dev/null; then
+          if [ "$STATUS" -eq 0 ]; then
             DOMAIN=$(terraform output -raw cloudfront_domain_name)
+            echo "domain=$DOMAIN" >> "$GITHUB_OUTPUT"
             echo "CloudFront distribution: https://$DOMAIN"
           else
             echo "No cloudfront_domain_name output detected."
           fi
+
+      - name: Smoke Test
+        if: steps.get-url.outputs.domain != ''
+        env:
+          URL: https://${{ steps.get-url.outputs.domain }}
+          SMOKE_PATH: ${{ inputs.smoke_test_path }}
+        run: |
+          sleep 30
+          TARGET="$URL$SMOKE_PATH"
+          echo "Validating $TARGET"
+          curl -sf "$TARGET"
