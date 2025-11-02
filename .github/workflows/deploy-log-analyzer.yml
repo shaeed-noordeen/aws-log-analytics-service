@@ -21,6 +21,7 @@ jobs:
     uses: ./.github/workflows/deploy-app.yml
     with:
       app_name: log-analyzer
-      dockerfile: log_analyzer/app/Dockerfile
+      dockerfile: log_analyzer/Dockerfile
+      context: log_analyzer/app
       terraform_dir: log_analyzer/app/terraform/envs/prod
     secrets: inherit
