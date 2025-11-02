@@ -1,27 +1,32 @@
 # Log Analyzer Service
 
-This service reads JSON Lines (JSONL) logs, counts `level="ERROR"` entries per service, and flags an alert when the error count crosses a threshold. It’s exposed in two ways:
+This service reads JSON Lines (JSONL) logs, counts `level="ERROR"` entries per service, and raises an alert when the error count crosses a threshold. It is exposed in two ways:
 
-- **CLI** – run locally or in CI
-- **HTTP (FastAPI)** – run in a container on ECS Fargate behind ALB → CloudFront
+- CLI - run locally or in CI
+- HTTP (FastAPI) - run in a container on ECS Fargate behind ALB -> CloudFront
 
 Current deployed endpoint:
 
-- **CloudFront URL:** https://d3bxdmz0itwwlu.cloudfront.net
+- CloudFront URL: https://d3bxdmz0itwwlu.cloudfront.net
   - `GET https://d3bxdmz0itwwlu.cloudfront.net/healthz`
   - `GET https://d3bxdmz0itwwlu.cloudfront.net/analyze?bucket=<bucket>&prefix=<prefix>&threshold=3`
 
 Repo location for this service:
 
-```text
+```
 log_analyzer/
-└── app/
-    ├── cli.py
-    ├── http_server.py
-    ├── core/analyzer.py
-    ├── requirements.txt
-    ├── Dockerfile
-    └── terraform/envs/prod/
+  app/
+    app/
+      cli.py
+      http_server.py
+      core/analyzer.py
+      testdata/sample.jsonl
+      tests/
+    Dockerfile
+    README.md
+    requirements.txt
+    setup.py
+    terraform/envs/prod/
 ```
 
 ---
@@ -37,7 +42,7 @@ source .venv/bin/activate
 pip install -e .
 
 # local file
-analyze --file testdata/sample.jsonl --threshold 3
+analyze --file app/testdata/sample.jsonl --threshold 3
 
 # from S3 (uses your AWS creds)
 analyze --bucket devops-assignment-logs-430957 \
@@ -85,21 +90,21 @@ curl https://d3bxdmz0itwwlu.cloudfront.net/healthz
 curl "https://d3bxdmz0itwwlu.cloudfront.net/analyze?bucket=devops-assignment-logs-430957&prefix=2025-09-15T16-00.jsonl&threshold=3"
 ```
 
-CloudFront → ALB security groups are already in place, so `/healthz` should return `{"status":"ok"}`.
+CloudFront and ALB security groups are already in place, so `/healthz` should return `{"status":"ok"}`.
 
 ---
 
 ## 3. Deploy (Terraform)
 
-Infra for this service is here:
+Infrastructure for this service is here:
 
-```text
+```
 log_analyzer/app/terraform/envs/prod
 ```
 
 It reuses shared modules from:
 
-```text
+```
 terraform_modules/
 ```
 
@@ -115,50 +120,50 @@ terraform -chdir=log_analyzer/app/terraform/envs/prod apply \
 This will:
 
 1. create VPC + subnets + routing,
-2. run the container on **ECS Fargate**,
-3. expose it via **ALB**,
-4. front it with **CloudFront**.
+2. run the container on ECS Fargate,
+3. expose it via ALB,
+4. front it with CloudFront.
 
 ---
 
 ## 4. Design decisions
 
-**Workload shape (server vs function)**
-This app is a **long-running HTTP service**: it exposes `/healthz`, it must be probed by an ALB/CloudFront, and it keeps a FastAPI/uvicorn process listening on port 8080. That’s a **server** pattern (bind + stay up). Lambda is an **event** pattern (run, return, exit). You can wrap Lambda behind API Gateway, but then API Gateway is the server — not the function. For this kind of health-checked service, a container running all the time is the cleaner fit.
+**Workload shape (server vs function)**  
+This app is a long-running HTTP service: it exposes `/healthz`, it must be probed by an ALB/CloudFront, and it keeps a FastAPI/uvicorn process listening on port 8080. That is a server pattern (bind + stay up). Lambda is an event pattern (run, return, exit). You can wrap Lambda behind API Gateway, but then API Gateway is the server. For this kind of health-checked service, a container running all the time is the cleaner fit.
 
-**Why ECS Fargate**
+**Why ECS Fargate**  
 We needed to run a container inside a VPC, keep it up, register it in a target group, and not manage EC2. ECS Fargate gives us:
 
 * no EC2/AMI/patching,
 * native integration with ALB target groups and health checks,
 * private subnets + security groups,
-* a straightforward path from “CI built an image” → “run that image”.
+* a straightforward path from "CI built an image" -> "run that image".
 
 EKS would have been cluster overhead for one small service; EC2 would have added OS management.
 
-**Why ALB**
+**Why ALB**  
 ALB gives us:
 
 * a stable HTTP origin for CloudFront,
 * `/healthz` health checks,
-* the ability to lock inbound to “**only CloudFront**” using the AWS-managed prefix list,
-* clean mapping from URL → ECS task.
+* the ability to lock inbound to "only CloudFront" using the AWS-managed prefix list,
+* clean mapping from URL -> ECS task.
 
-**Why CloudFront**
+**Why CloudFront**  
 CloudFront sits in front because the platform task required the service to be reachable at a CloudFront URL. It also gives us a single public endpoint, future WAF, and the option to keep the ALB effectively private.
 
-**S3 read model**
-Right now we read “the latest object under a prefix”. That matches how the sample logs are written. We added pagination so it won’t break past 1,000 objects. Extending it to “latest N” or “since timestamp” is the next natural step.
+**S3 read model**  
+Right now we read "the latest object under a prefix". That matches how the sample logs are written. We added pagination so it will not break past 1,000 objects. Extending it to "latest N" or "since timestamp" is the next natural step.
 
 ---
 
 ## 5. Limitations / next steps
 
-* **Checkov** is in the repo but we’re **not** failing the pipeline on its findings (time-boxed).
-* **No static analysis** (Ruff/Bandit/SonarQube) in CI yet — should be added.
-* **Terraform modules aren’t versioned** — in a real setup we’d tag `terraform_modules/` and pin envs to versions.
-- **No authentication on the HTTP API** – `/analyze` is open. In a real environment this would sit behind Cognito, an API key, or at least CloudFront signed headers.
-- **Alerting is local only** – we return `{"alert": true}` but don’t push to SNS / EventBridge / Slack. Next step would be to publish alerts to SNS so ops gets notified.
-- **Single environment shown** – we wired `prod` to keep it simple. Normally we’d have `dev/stage/prod` workspaces or separate env folders sharing the same modules.
-- **Image/security scanning not enforced** – we build and push to ECR, but we’re not failing the pipeline on image scan / Checkov yet.
-- **Modules not versioned** – `terraform_modules/` is used from source; in a team setup we’d tag module releases and pin envs to those tags.
+* Checkov is in the repo but we are not failing the pipeline on its findings (time-boxed).
+* No static analysis (Ruff/Bandit/SonarQube) in CI yet — should be added.
+* Terraform modules are not versioned — in a real setup we would tag `terraform_modules/` and pin envs to versions.
+* No authentication on the HTTP API — `/analyze` is open. In a real environment this would sit behind Cognito, an API key, or at least CloudFront signed headers.
+* Alerting is local only — we return `{"alert": true}` but do not push to SNS / EventBridge / Slack. Next step would be to publish alerts to SNS so ops gets notified.
+* Single environment shown — we wired `prod` to keep it simple. Normally we would have `dev/stage/prod` workspaces or separate env folders sharing the same modules.
+* Image/security scanning not enforced — we build and push to ECR, but we are not failing the pipeline on image scan / Checkov yet.
+* Modules not versioned — `terraform_modules/` is used from source; in a team setup we would tag module releases and pin envs to those tags.
