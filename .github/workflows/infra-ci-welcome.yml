@@ -3,7 +3,9 @@ name: Infrastructure CI (Welcome)
 on:
   pull_request:
     paths:
-      - 'terraform/envs/welcome/**'
+      - 'terraform_modules/**'
+      - 'log_analyzer/app/terraform/**'
+      - 'welcome-website/terraform/**'
 
 permissions:
   contents: read
@@ -14,7 +16,7 @@ jobs:
   plan:
     uses: ./.github/workflows/terraform-plan.yml
     with:
-      terraform_dir: terraform/envs/welcome
-      checkov_directory: terraform/envs/welcome
+      terraform_dir: welcome-website/terraform/envs/welcome
+      checkov_directory: welcome-website/terraform/envs/welcome
       plan_title: Terraform Plan (welcome)
     secrets: inherit

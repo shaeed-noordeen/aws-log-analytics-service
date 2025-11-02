@@ -3,8 +3,8 @@ name: Application CI
 on:
   pull_request:
     paths:
-      - 'app/**'
-      - 'docker/Dockerfile'
+      - 'log_analyzer/app/**'
+      - 'log_analyzer/app/Dockerfile'
 
 jobs:
   lint-and-test:
@@ -22,18 +22,18 @@ jobs:
         run: |
           python -m venv .venv
           source .venv/bin/activate
-          pip install -e .
+          pip install -e log_analyzer/app
           pip install flake8
 
       - name: Lint with flake8
         run: |
           source .venv/bin/activate
-          flake8 app
+          flake8 log_analyzer/app
 
       - name: Test with unittest
         run: |
           source .venv/bin/activate
-          python -m unittest discover app/tests
+          python -m unittest discover log_analyzer/app/tests
 
   build-docker-image:
     runs-on: ubuntu-latest
@@ -46,4 +46,4 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Build Docker image
-        run: docker build -f docker/Dockerfile -t log-analyzer:pr-${{ github.event.number }} .
+        run: docker build -f log_analyzer/app/Dockerfile -t log-analyzer:pr-${{ github.event.number }} log_analyzer/app

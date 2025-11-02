@@ -5,10 +5,10 @@ on:
     branches:
       - main
     paths:
-      - 'app/**'
-      - 'docker/Dockerfile'
-      - 'terraform/envs/prod/**'
-      - 'terraform/modules/**'
+      - 'log_analyzer/app/**'
+      - 'log_analyzer/app/Dockerfile'
+      - 'log_analyzer/app/terraform/envs/prod/**'
+      - 'terraform_modules/**'
       - '.github/workflows/deploy-app.yml'
       - '.github/workflows/deploy-log-analyzer.yml'
 
@@ -21,6 +21,6 @@ jobs:
     uses: ./.github/workflows/deploy-app.yml
     with:
       app_name: log-analyzer
-      dockerfile: docker/Dockerfile
-      terraform_dir: terraform/envs/prod
+      dockerfile: log_analyzer/app/Dockerfile
+      terraform_dir: log_analyzer/app/terraform/envs/prod
     secrets: inherit
