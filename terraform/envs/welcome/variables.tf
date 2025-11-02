@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "image_tag" {
-  description = "The Docker image tag to deploy."
+  description = "The Docker image tag to deploy to ECR."
   type        = string
   default     = "latest"
 }

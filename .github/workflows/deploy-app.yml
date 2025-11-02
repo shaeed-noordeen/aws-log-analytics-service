@@ -73,6 +73,9 @@ jobs:
           docker build --file "${{ inputs.dockerfile }}" --tag "$REGISTRY/$REPOSITORY:$IMAGE_TAG" "${{ inputs.context }}"
           docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
       - name: Terraform Init
         working-directory: ${{ inputs.terraform_dir }}
         run: terraform init
