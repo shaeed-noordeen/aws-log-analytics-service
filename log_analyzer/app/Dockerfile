@@ -2,7 +2,7 @@
 FROM python:3.11-alpine AS builder
 WORKDIR /opt
 RUN apk add --no-cache build-base
-COPY app/requirements.txt /opt/app/requirements.txt
+COPY requirements.txt /opt/app/requirements.txt
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r /opt/app/requirements.txt
 COPY app /opt/app
